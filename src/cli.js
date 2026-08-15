@@ -10,6 +10,7 @@
 import { createInterface } from "node:readline";
 import { loadConfig, saveConfig, tradingTokenValid, CONFIG_PATH } from "./config.js";
 import { getAccounts } from "./dnse.js";
+import * as ssi from "./ssi.js";
 import { jwtValid } from "./tcbs.js";
 
 function ask(question, { mute = false } = {}) {
@@ -47,9 +48,21 @@ async function linkSsi() {
   const account = process.env.ALGOLAB_SSI_ACCOUNT || (await ask("Số tiểu khoản SSI (kèm hậu tố, VD 5552981): "));
   if (!consumerId || !consumerSecret || !account) throw new Error("Cần đủ ConsumerID + Secret + số tiểu khoản.");
   const cfg = loadConfig();
-  cfg.ssi = { consumerId, consumerSecret, defaultAccount: account, tokens: null };
+  // Giữ keypair cũ nếu đã có (đã dán iBoard); chưa có thì sinh mới.
+  const prev = cfg.ssi ?? {};
+  const kp = prev.privateKeyPem && prev.publicKeyXml ? prev : ssi.generateKeypair();
+  cfg.ssi = {
+    consumerId, consumerSecret, defaultAccount: account,
+    privateKeyPem: kp.privateKeyPem, publicKeyXml: kp.publicKeyXml, tokens: null,
+  };
   saveConfig(cfg);
-  console.log("Đã lưu. SSI xác thực khoá ở lần OTP đầu (V3 cần OTP cả cho đọc; sau đó refresh token tự gia hạn).");
+  console.log("Đã lưu ConsumerID/Secret + keypair ký lệnh (private key nằm trên máy bạn).");
+  if (!(prev.privateKeyPem && prev.publicKeyXml)) {
+    console.log("\n⚠️  DÁN PUBLIC KEY dưới đây vào iBoard → Dịch vụ API (một lần) để ĐẶT LỆNH:\n");
+    console.log(kp.publicKeyXml + "\n");
+    console.log("Đọc số dư/danh mục thì không cần bước này — chỉ cần OTP.");
+  }
+  console.log("Mở khoá phiên: gọi request_broker_otp/submit_broker_otp (V3 cần OTP một lần; refresh tự gia hạn).");
 }
 
 async function linkTcbs() {
@@ -78,6 +91,34 @@ function unlink(target) {
   console.log(`Đã xoá khoá ${target.toUpperCase()} khỏi máy. (Triệt để: thu hồi key tại CTCK.)`);
 }
 
+// Tự-kiểm-chứng: quét mọi URL http(s) trong CODE CHẠY của chính bridge và
+// khẳng định nó CHỈ gọi 3 host CTCK — không có bất kỳ địa chỉ nào của Algolab
+// hay bên thứ ba. Đây là bằng chứng "npm không gửi token đi đâu cả" mà user
+// tự chạy được, không cần tin lời ai.
+async function verify() {
+  const { readdirSync, readFileSync } = await import("node:fs");
+  const { fileURLToPath } = await import("node:url");
+  const dir = fileURLToPath(new URL(".", import.meta.url));
+  const ALLOWED = ["openapi.dnse.com.vn", "api.ssi.com.vn", "openapi.tcbs.com.vn"];
+  const hosts = new Set();
+  for (const f of readdirSync(dir).filter((x) => x.endsWith(".js") && !x.endsWith(".test.js"))) {
+    for (const m of readFileSync(dir + f, "utf8").matchAll(/https?:\/\/([a-z0-9.-]+)/gi)) {
+      hosts.add(m[1].toLowerCase());
+    }
+  }
+  const list = [...hosts];
+  const bad = list.filter((h) => !ALLOWED.includes(h));
+  console.log("Các host bridge liên lạc (quét từ mã nguồn đang chạy):");
+  for (const h of list) console.log("  •", h, ALLOWED.includes(h) ? "(CTCK ✓)" : "(LẠ ✗)");
+  const algolab = list.some((h) => h.includes("algolab"));
+  console.log("\nGọi về Algolab / bên thứ ba:", algolab || bad.length ? "CÓ ✗ (BÁO ĐỘNG)" : "KHÔNG ✓");
+  console.log("Kết luận:", !bad.length && !algolab
+    ? "Bridge chỉ nói chuyện với CTCK — khoá không đi đâu khác. An toàn."
+    : "Phát hiện host lạ — KHÔNG nên tin bản này.");
+  console.log("\nTự kiểm thêm:  npm test   ·  grep -rn https src/   ·  đọc mã: github.com/algolabx/mcp-trading");
+  process.exit(bad.length || algolab ? 1 : 0);
+}
+
 const BROKERS = ["dnse", "ssi", "tcbs"];
 const [cmd, target] = process.argv.slice(2);
 try {
@@ -85,9 +126,10 @@ try {
   else if (cmd === "link" && target === "ssi") await linkSsi();
   else if (cmd === "link" && target === "tcbs") await linkTcbs();
   else if (cmd === "status" || cmd === undefined) status();
+  else if (cmd === "verify") await verify();
   else if (cmd === "unlink" && BROKERS.includes(target)) unlink(target);
   else {
-    console.log("Cách dùng: mcp-trading [link dnse|ssi|tcbs | status | unlink dnse|ssi|tcbs]");
+    console.log("Cách dùng: mcp-trading [link dnse|ssi|tcbs | status | verify | unlink dnse|ssi|tcbs]");
     process.exit(1);
   }
 } catch (e) {

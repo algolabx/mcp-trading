@@ -5,8 +5,9 @@
 //     KHÔNG có tool nào nhận/trả khoá; setup duy nhất qua CLI ngoài chat.
 //   • Ký/gọi local từ IP của chính user (giải geo-block DNSE, không relay).
 //   • Lệnh tiền giữ nghi thức 2 bước: preview (không mạng) → confirm=true.
-// Phạm vi: DNSE đầy đủ · TCBS đầy đủ · SSI đọc + OTP (đặt lệnh SSI đi đường
-// remote vì keypair ký lệnh chỉ đăng ký được một nơi trên iBoard).
+// Phạm vi: DNSE · SSI · TCBS đều ĐẦY ĐỦ (đọc + đặt/huỷ lệnh), ký/gửi local.
+// SSI ký lệnh bằng keypair RSA sinh trên máy user; user dán public key vào
+// iBoard một lần (Dịch vụ API) — private key không rời máy.
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -15,7 +16,7 @@ import * as dnse from "./dnse.js";
 import * as ssi from "./ssi.js";
 import * as tcbs from "./tcbs.js";
 
-const server = new McpServer({ name: "mcp-trading", version: "0.2.0" });
+const server = new McpServer({ name: "mcp-trading", version: "0.3.0" });
 
 const j = (obj) => ({ content: [{ type: "text", text: JSON.stringify(obj, null, 1) }] });
 
@@ -98,7 +99,7 @@ server.tool(
             linked: true,
             default_account: cfg.ssi.defaultAccount ?? null,
             token: cfg.ssi.tokens?.accessToken ? "có (tự refresh)" : "chưa mở — cần OTP một lần",
-            orders: "đặt lệnh SSI đi đường remote (keypair iBoard) — bridge chỉ đọc",
+            keypair: cfg.ssi.privateKeyPem ? "có (đặt lệnh được sau khi dán public key iBoard)" : "chưa có — chạy link ssi",
           }
         : { linked: false, how_to_link: linkHint("ssi") },
       tcbs: cfg.tcbs
@@ -300,7 +301,7 @@ server.tool(
 
 server.tool(
   "place_broker_order",
-  "Đặt lệnh THẬT (DNSE, TCBS; SSI đi đường remote). Nghi thức 2 bước bắt buộc: " +
+  "Đặt lệnh THẬT (DNSE, SSI, TCBS — tất cả ký/gửi local). Nghi thức 2 bước bắt buộc: " +
     "gọi lần đầu KHÔNG kèm confirm → trả preview, chưa gửi gì; đọc lại cho người dùng, " +
     "CHỜ họ xác nhận rõ ràng rồi mới gọi lại với confirm=true. Không tự ý xác nhận thay.",
   {
@@ -315,11 +316,6 @@ server.tool(
     confirm: z.boolean().default(false).optional(),
   },
   safe(async ({ broker = "dnse", symbol, side, quantity, price, order_type, account, market, confirm }) => {
-    if (broker === "ssi") {
-      throw new Error(
-        "Đặt lệnh SSI qua bridge chưa hỗ trợ (keypair ký lệnh chỉ đăng ký được một nơi trên iBoard — đang thuộc đường remote). Dùng MCP algolab (remote) để đặt lệnh SSI.",
-      );
-    }
     const cfg = loadConfig();
     const section = need(cfg, broker);
     const acc = pickAccount(section, account, broker.toUpperCase());
@@ -362,6 +358,16 @@ server.tool(
       );
       return j({ order });
     }
+    if (broker === "ssi") {
+      if (!section.privateKeyPem) {
+        throw new Error("Chưa có keypair ký lệnh SSI — chạy `link ssi` để sinh và dán public key vào iBoard.");
+      }
+      const token = await ssiToken(cfg); // tự refresh; hết thì báo cần OTP
+      const order = await ssi.placeOrder(token, section.privateKeyPem, {
+        accountNo: acc, symbol: sym, side: ssi.normalizeSide(side), quantity: qty, price: px, orderType: ot,
+      });
+      return j({ order });
+    }
     // TCBS
     const order = await tcbs.placeStockOrder(tcbsJwt(cfg), acc, {
       symbol: sym,
@@ -376,7 +382,7 @@ server.tool(
 
 server.tool(
   "cancel_broker_order",
-  "Huỷ một lệnh theo order_id (DNSE, TCBS). Cũng 2 bước: không confirm → preview; confirm=true mới gửi.",
+  "Huỷ một lệnh theo order_id (DNSE, SSI, TCBS). Cũng 2 bước: không confirm → preview; confirm=true mới gửi.",
   {
     broker: BROKER.optional(),
     order_id: z.string(),
@@ -385,7 +391,6 @@ server.tool(
     confirm: z.boolean().default(false).optional(),
   },
   safe(async ({ broker = "dnse", order_id, account, market, confirm }) => {
-    if (broker === "ssi") throw new Error("Huỷ lệnh SSI qua bridge chưa hỗ trợ — dùng MCP algolab (remote).");
     const cfg = loadConfig();
     const section = need(cfg, broker);
     const acc = pickAccount(section, account, broker.toUpperCase());
@@ -401,6 +406,11 @@ server.tool(
       return j({
         result: await dnse.cancelOrder(section, acc, String(order_id), market ?? "STOCK", section.tradingToken.value),
       });
+    }
+    if (broker === "ssi") {
+      if (!section.privateKeyPem) throw new Error("Chưa có keypair ký lệnh SSI — chạy `link ssi` trước.");
+      const token = await ssiToken(cfg);
+      return j({ result: await ssi.cancelOrder(token, section.privateKeyPem, { accountNo: acc, orderId: String(order_id) }) });
     }
     return j({ result: await tcbs.cancelStockOrders(tcbsJwt(cfg), acc, [String(order_id)]) });
   }),

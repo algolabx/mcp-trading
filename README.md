@@ -4,7 +4,7 @@ MCP server **chạy trên máy bạn** để giao dịch chứng khoán Việt N
 
 - Khoá lưu tại `~/.algolab/mcp-broker.json` (chmod 600) — **không đi qua chat AI, không qua server bên thứ ba**.
 - Ký/gọi request local **từ chính IP của bạn** — không cần relay/VPN (DNSE HMAC V2, TCBS JWT, SSI V3 OAuth).
-- Phạm vi: **DNSE đầy đủ · TCBS đầy đủ · SSI đọc + OTP** (đặt lệnh SSI cần keypair đăng ký iBoard — dùng đường hosted).
+- Phạm vi: **DNSE · SSI · TCBS đều đầy đủ** (đọc + đặt/huỷ lệnh, ký/gửi local). SSI ký lệnh bằng keypair sinh trên máy bạn — dán public key vào iBoard một lần.
 - Lệnh tiền luôn 2 bước: AI chỉ nhận bản xem trước, bạn xác nhận rõ ràng thì lệnh mới được gửi.
 
 Không cần tài khoản npm hay GitHub để dùng — cài thẳng từ GitHub bằng `npx`.
@@ -15,7 +15,7 @@ Không cần tài khoản npm hay GitHub để dùng — cài thẳng từ GitHu
 
 ```bash
 npx -y github:algolabx/mcp-trading link dnse   # API Key + Secret (webtrading DNSE → LightSpeed API) + email OTP
-npx -y github:algolabx/mcp-trading link ssi    # ConsumerID + Secret (iBoard → Dịch vụ API) + số tiểu khoản (VD 5552981)
+npx -y github:algolabx/mcp-trading link ssi    # ConsumerID + Secret + tiểu khoản; sinh keypair → dán public key iBoard
 npx -y github:algolabx/mcp-trading link tcbs   # API Key iFlash (app TCInvest) — tiểu khoản tự phát hiện sau iOTP
 npx -y github:algolabx/mcp-trading status      # xem trạng thái (không bao giờ in khoá)
 ```

@@ -1,10 +1,14 @@
 // SSI FastConnect V3 — port từ src/lib/broker/ssi/v3/client.ts (prod).
-// Bridge hỗ trợ ĐỌC + OTP + refresh token. ĐẶT LỆNH SSI không đưa vào bridge:
-// ký lệnh cần keypair RSA đăng ký iBoard — chỉ đăng ký được MỘT public key,
-// và key đó đang thuộc về server (đường remote). Đọc thì chỉ cần token OTP.
+// Bridge hỗ trợ ĐỌC + OTP + refresh + ĐẶT/HUỶ LỆNH (ký local bằng keypair RSA).
+// Keypair sinh trên máy user; user dán public key vào iBoard (Dịch vụ API) một
+// lần → ký lệnh hoàn toàn local, khoá không rời máy.
 // ⚠️ 3 bẫy V3 (đã trả giá 14/08): clientId = ConsumerID, không được rỗng;
 // account phải kèm hậu tố tiểu khoản (5552981…); orderBook đòi from/to YYYY/MM/DD.
+import { generateKeyPairSync, sign as nodeSign } from "node:crypto";
+
 const BASE = process.env.SSI_V3_BASE ?? "https://api.ssi.com.vn";
+const DEVICE_ID = "mcp-trading-bridge";
+const USER_AGENT = "mcp-trading/0.3";
 
 const EP = {
   token: "/api/v3/auth/token",
@@ -13,8 +17,39 @@ const EP = {
   accountBalance: "/api/v3/trading/accountBalance",
   position: "/api/v3/trading/position",
   orderBook: "/api/v3/trading/orderBook",
+  order: "/api/v3/trading/order",
   accountInfo: "/api/v3/account/info",
 };
+
+/** Sinh cặp RSA-2048: private PKCS8 PEM (lưu local) + public XML (dán iBoard). */
+export function generateKeypair() {
+  const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const privateKeyPem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+  const jwk = publicKey.export({ format: "jwk" });
+  const b64 = (s) => s.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (s.length % 4)) % 4);
+  const publicKeyXml = `<RSAKeyValue><Modulus>${b64(jwk.n)}</Modulus><Exponent>${b64(jwk.e)}</Exponent></RSAKeyValue>`;
+  return { privateKeyPem, publicKeyXml };
+}
+
+/** X-Signature: RSA-SHA256 (PKCS#1 v1.5) trên nguyên văn body JSON → hex. */
+function signPayload(payload, privateKeyPem) {
+  return nodeSign("sha256", Buffer.from(payload, "utf8"), privateKeyPem).toString("hex");
+}
+
+function genRequestId() {
+  const a = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  let s = "";
+  for (let i = 0; i < 20; i++) s += a[Math.floor(Math.random() * a.length)];
+  return s;
+}
+
+/** B/S từ mọi cách gọi; không đoán chiều mơ hồ. */
+export function normalizeSide(side) {
+  const s = String(side ?? "").trim().toUpperCase();
+  if (["BUY", "NB", "B", "MUA"].includes(s)) return "B";
+  if (["SELL", "NS", "S", "BAN", "BÁN"].includes(s)) return "S";
+  throw new SsiError(400, `Chiều lệnh không hợp lệ: ${side}`);
+}
 
 export class SsiError extends Error {
   constructor(status, message, detail) {
@@ -41,6 +76,8 @@ async function request(method, path, opts = {}) {
   if (opts.body !== undefined) {
     payload = JSON.stringify(opts.body);
     headers["Content-Type"] = "application/json";
+    // Ký local: serialize MỘT lần, ký đúng chuỗi đó, gửi đúng chuỗi đó.
+    if (opts.privateKeyPem) headers["X-Signature"] = signPayload(payload, opts.privateKeyPem);
   }
   const res = await fetch(url.toString(), { method, headers, body: payload });
   const json = await res.json().catch(() => ({}));
@@ -133,4 +170,33 @@ export async function freshAccessToken(ssiCfg, persist, now = new Date()) {
     }
   }
   return null;
+}
+
+// ── đặt / huỷ lệnh (ký local bằng private key trên máy user) ─────────────────
+// Cần: SSI đã link + có keypair (public key đã dán iBoard) + token OTP còn hạn.
+
+export function placeOrder(token, privateKeyPem, { accountNo, symbol, side, quantity, price, orderType }) {
+  const body = {
+    accountNo,
+    symbol: String(symbol).toUpperCase(),
+    side, // B / S
+    quantity,
+    price: String(orderType === "LO" ? price : 0), // SDK serialize giá thành CHUỖI
+    orderType,
+    clientRequestId: genRequestId(),
+    deviceId: DEVICE_ID,
+    userAgent: USER_AGENT,
+  };
+  return request("POST", EP.order, { token, body, privateKeyPem });
+}
+
+export function cancelOrder(token, privateKeyPem, { accountNo, orderId }) {
+  const body = {
+    accountNo,
+    orderId: String(orderId),
+    clientCancelId: genRequestId(),
+    deviceId: DEVICE_ID,
+    userAgent: USER_AGENT,
+  };
+  return request("DELETE", EP.order, { token, body, privateKeyPem });
 }
