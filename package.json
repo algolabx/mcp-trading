@@ -1,0 +1,44 @@
+{
+  "name": "mcp-trading",
+  "version": "0.2.0",
+  "description": "MCP server chạy local để giao dịch chứng khoán Việt Nam (DNSE · SSI · TCBS) — khoá API nằm nguyên trên máy bạn, không qua chat AI, không qua server bên thứ ba.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "mcp-trading": "src/cli.js",
+    "mcp-trading-server": "src/index.js"
+  },
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test src/*.test.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/algolabx/mcp-trading.git"
+  },
+  "homepage": "https://github.com/algolabx/mcp-trading",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "trading",
+    "chung-khoan",
+    "vietnam",
+    "dnse",
+    "ssi",
+    "tcbs",
+    "claude"
+  ]
+}
