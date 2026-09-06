@@ -14,6 +14,7 @@ Không cần tài khoản npm hay GitHub để dùng — cài thẳng từ GitHu
 **Liên kết CTCK** (chạy trong terminal của bạn — KHÔNG dán khoá vào chat AI):
 
 ```bash
+npx -y github:algolabx/mcp-trading link        # hỏi chọn DNSE / SSI / TCBS rồi nhập khoá
 npx -y github:algolabx/mcp-trading link dnse   # API Key + Secret (webtrading DNSE → LightSpeed API) + email OTP
 npx -y github:algolabx/mcp-trading link ssi    # ConsumerID + Secret + tiểu khoản; sinh keypair → dán public key iBoard
 npx -y github:algolabx/mcp-trading link tcbs   # API Key iFlash (app TCInvest) — tiểu khoản tự phát hiện sau iOTP
@@ -62,4 +63,4 @@ node src/cli.js link dnse
 
 ## Nguồn
 
-Bridge này là Tầng C của thiết kế bảo mật "Két Ba Tầng" của [Algolab](https://algolab.vn) — xem tài liệu tại [mcp.algolab.vn/docs/bridge](https://mcp.algolab.vn/docs/bridge). MIT License.
+Bridge này là Tầng C của thiết kế bảo mật "Két Ba Tầng" của [Algolab](https://algolab.vn) — xem tài liệu tại [mcp.algolab.vn/trading](https://mcp.algolab.vn/trading). MIT License.

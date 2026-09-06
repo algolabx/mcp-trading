@@ -34,6 +34,6 @@ export function tradingTokenValid(cfg, now = new Date()) {
 
 export const NOT_LINKED_MSG =
   "Chưa liên kết DNSE trên máy này. Chạy trong terminal (KHÔNG dán khoá vào chat):\n" +
-  "  npx mcp-trading link dnse\n" +
+  "  npx -y github:algolabx/mcp-trading link dnse\n" +
   "Khoá lấy từ webtrading DNSE → Thông tin cá nhân → LightSpeed API; " +
   "lưu tại ~/.algolab/mcp-broker.json quyền 600 (chỉ mình bạn đọc) và không rời máy bạn.";

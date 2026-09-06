@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // CLI setup của bridge — chạy trong TERMINAL của user, ngoài kênh chat AI.
-//   mcp-trading link dnse|ssi|tcbs   nhập khoá (ẩn phím) + lưu local
+//   mcp-trading link [dnse|ssi|tcbs] nhập khoá (ẩn phím) + lưu local; không kèm tên → hỏi chọn
 //   mcp-trading status               trạng thái (không in khoá)
 //   mcp-trading unlink dnse|ssi|tcbs xoá khoá khỏi máy
 // Không tương tác (script cá nhân): đặt env rồi chạy link —
@@ -121,15 +121,26 @@ async function verify() {
 
 const BROKERS = ["dnse", "ssi", "tcbs"];
 const [cmd, target] = process.argv.slice(2);
+/** `link` không kèm CTCK (lệnh trên mcp.algolab.vn/trading) → hỏi chọn 1/2/3. */
+async function pickBroker() {
+  console.log("Chọn công ty chứng khoán để liên kết:\n  1) DNSE   2) SSI   3) TCBS");
+  const a = (await ask("Nhập 1, 2 hoặc 3 (hoặc gõ tên): ")).toLowerCase();
+  const map = { "1": "dnse", "2": "ssi", "3": "tcbs" };
+  const b = map[a] ?? (BROKERS.includes(a) ? a : null);
+  if (!b) { console.log("Không hiểu lựa chọn. Chạy lại: mcp-trading link dnse|ssi|tcbs"); process.exit(1); }
+  return b;
+}
+
 try {
-  if (cmd === "link" && target === "dnse") await linkDnse();
-  else if (cmd === "link" && target === "ssi") await linkSsi();
-  else if (cmd === "link" && target === "tcbs") await linkTcbs();
+  const linkTarget = cmd === "link" && !target ? await pickBroker() : target;
+  if (cmd === "link" && linkTarget === "dnse") await linkDnse();
+  else if (cmd === "link" && linkTarget === "ssi") await linkSsi();
+  else if (cmd === "link" && linkTarget === "tcbs") await linkTcbs();
   else if (cmd === "status" || cmd === undefined) status();
   else if (cmd === "verify") await verify();
   else if (cmd === "unlink" && BROKERS.includes(target)) unlink(target);
   else {
-    console.log("Cách dùng: mcp-trading [link dnse|ssi|tcbs | status | verify | unlink dnse|ssi|tcbs]");
+    console.log("Cách dùng: mcp-trading [link [dnse|ssi|tcbs] | status | verify | unlink dnse|ssi|tcbs]");
     process.exit(1);
   }
 } catch (e) {

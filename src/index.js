@@ -16,7 +16,7 @@ import * as dnse from "./dnse.js";
 import * as ssi from "./ssi.js";
 import * as tcbs from "./tcbs.js";
 
-const server = new McpServer({ name: "mcp-trading", version: "0.3.0" });
+const server = new McpServer({ name: "mcp-trading", version: "0.3.1" });
 
 const j = (obj) => ({ content: [{ type: "text", text: JSON.stringify(obj, null, 1) }] });
 
@@ -37,7 +37,7 @@ const BROKER = z.enum(["dnse", "ssi", "tcbs"]).default("dnse");
 
 const linkHint = (name) =>
   `Chưa liên kết ${name.toUpperCase()} trên máy này. Chạy trong terminal (KHÔNG dán khoá vào chat):\n` +
-  `  npx mcp-trading link ${name}\n` +
+  `  npx -y github:algolabx/mcp-trading link ${name}\n` +
   `Khoá lưu tại ~/.algolab/mcp-broker.json quyền 600 và không rời máy bạn.`;
 
 function need(cfg, name) {
