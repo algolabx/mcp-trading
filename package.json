@@ -1,6 +1,6 @@
 {
   "name": "mcp-trading",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "MCP server chạy local để giao dịch chứng khoán Việt Nam (DNSE · SSI · TCBS) — khoá API nằm nguyên trên máy bạn, không qua chat AI, không qua server bên thứ ba.",
   "license": "MIT",
   "type": "module",

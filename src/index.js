@@ -33,7 +33,10 @@ const safe = (fn) => async (args) => {
   }
 };
 
-const BROKER = z.enum(["dnse", "ssi", "tcbs"]).default("dnse");
+const BROKER = z
+  .enum(["dnse", "ssi", "tcbs"])
+  .default("dnse")
+  .describe("Broker (CTCK): dnse | ssi | tcbs — must be linked first with `mcp-trading link`. Default dnse.");
 
 const linkHint = (name) =>
   `Chưa liên kết ${name.toUpperCase()} trên máy này. Chạy trong terminal (KHÔNG dán khoá vào chat):\n` +
@@ -163,7 +166,7 @@ tool(
 tool(
   "get_broker_balance",
   "Tiền mặt / sức mua của một tiểu khoản.",
-  { broker: BROKER.optional(), account: z.string().optional() },
+  { broker: BROKER.optional(), account: z.string().optional().describe("Sub-account number (tiểu khoản). Omit to use the default sub-account saved when linking.") },
   safe(async ({ broker = "dnse", account }) => {
     const cfg = loadConfig();
     if (broker === "dnse") {
@@ -188,8 +191,8 @@ tool(
   "Danh mục đang nắm giữ của một tiểu khoản.",
   {
     broker: BROKER.optional(),
-    account: z.string().optional(),
-    market: z.enum(["STOCK", "DERIVATIVE"]).default("STOCK").optional(),
+    account: z.string().optional().describe("Sub-account number (tiểu khoản). Omit to use the default sub-account saved when linking."),
+    market: z.enum(["STOCK", "DERIVATIVE"]).default("STOCK").optional().describe("STOCK = cash equities (cơ sở), DERIVATIVE = VN30F futures (phái sinh). Default STOCK."),
   },
   safe(async ({ broker = "dnse", account, market }) => {
     const cfg = loadConfig();
@@ -212,8 +215,8 @@ tool(
   "Sổ lệnh trong ngày của một tiểu khoản.",
   {
     broker: BROKER.optional(),
-    account: z.string().optional(),
-    market: z.enum(["STOCK", "DERIVATIVE"]).default("STOCK").optional(),
+    account: z.string().optional().describe("Sub-account number (tiểu khoản). Omit to use the default sub-account saved when linking."),
+    market: z.enum(["STOCK", "DERIVATIVE"]).default("STOCK").optional().describe("STOCK = cash equities (cơ sở), DERIVATIVE = VN30F futures (phái sinh). Default STOCK."),
   },
   safe(async ({ broker = "dnse", account, market }) => {
     const cfg = loadConfig();
@@ -238,7 +241,10 @@ tool(
   "Nhờ CTCK gửi OTP mở phiên. DNSE: OTP email (chỉ cần cho đặt/huỷ lệnh; có Smart OTP thì bỏ qua). " +
     "SSI: gửi theo 2FA đã đăng ký — cần một lần cho cả đọc, sau đó refresh tự gia hạn. " +
     "TCBS: không gửi gì — iOTP sinh trong app TCInvest, nộp thẳng submit_broker_otp.",
-  { broker: BROKER.optional(), email: z.string().optional() },
+  {
+    broker: BROKER.optional(),
+    email: z.string().optional().describe("DNSE only: email to receive the OTP. Omit to use the email saved when linking."),
+  },
   safe(async ({ broker = "dnse", email }) => {
     const cfg = loadConfig();
     if (broker === "dnse") {
@@ -268,9 +274,9 @@ tool(
     "SSI: mở access+refresh token (đọc dùng được ngay, tự gia hạn). TCBS: JWT 8h + bridge tự phát hiện tiểu khoản.",
   {
     broker: BROKER.optional(),
-    otp: z.string().optional(),
-    smart_otp: z.boolean().default(false).optional(),
-    transaction_id: z.string().optional(),
+    otp: z.string().optional().describe("OTP code from the broker (DNSE email/Smart OTP, SSI 2FA, TCBS iOTP from the TCInvest app)."),
+    smart_otp: z.boolean().default(false).optional().describe("DNSE: true if the code comes from the Smart OTP app instead of email."),
+    transaction_id: z.string().optional().describe("SSI push-approval (Smart OTP) flow: transaction id returned by request_broker_otp; no otp needed then."),
   },
   safe(async ({ broker = "dnse", otp, smart_otp, transaction_id }) => {
     const cfg = loadConfig();
@@ -326,14 +332,14 @@ tool(
     "CHỜ họ xác nhận rõ ràng rồi mới gọi lại với confirm=true. Không tự ý xác nhận thay.",
   {
     broker: BROKER.optional(),
-    symbol: z.string(),
+    symbol: z.string().describe("Ticker, e.g. HPG, FPT, or a futures code such as VN30F2510."),
     side: z.string().describe("BUY/SELL (nhận cả NB/NS/MUA/BÁN)"),
-    quantity: z.number().int().positive(),
-    price: z.number().nonnegative().default(0).optional(),
-    order_type: z.string().default("LO").optional(),
-    account: z.string().optional(),
-    market: z.enum(["STOCK", "DERIVATIVE"]).default("STOCK").optional(),
-    confirm: z.boolean().default(false).optional(),
+    quantity: z.number().int().positive().describe("Number of shares/contracts (cash equities trade in lots of 100)."),
+    price: z.number().nonnegative().default(0).optional().describe("Limit price in VND for stocks (index points for futures). 0 / omit for market-type orders (ATO, ATC, MP…)."),
+    order_type: z.string().default("LO").optional().describe("LO (limit, default), MP, ATO, ATC, MTL, MOK, MAK — depends on exchange/session."),
+    account: z.string().optional().describe("Sub-account number (tiểu khoản). Omit to use the default sub-account saved when linking."),
+    market: z.enum(["STOCK", "DERIVATIVE"]).default("STOCK").optional().describe("STOCK = cash equities (cơ sở), DERIVATIVE = VN30F futures (phái sinh). Default STOCK."),
+    confirm: z.boolean().default(false).optional().describe("Leave false on the first call to get a preview (nothing is sent). Set true ONLY after the user explicitly confirms that preview."),
   },
   safe(async ({ broker = "dnse", symbol, side, quantity, price, order_type, account, market, confirm }) => {
     const cfg = loadConfig();
@@ -405,10 +411,10 @@ tool(
   "Huỷ một lệnh theo order_id (DNSE, SSI, TCBS). Cũng 2 bước: không confirm → preview; confirm=true mới gửi.",
   {
     broker: BROKER.optional(),
-    order_id: z.string(),
-    account: z.string().optional(),
-    market: z.enum(["STOCK", "DERIVATIVE"]).default("STOCK").optional(),
-    confirm: z.boolean().default(false).optional(),
+    order_id: z.string().describe("Order id from get_broker_orders."),
+    account: z.string().optional().describe("Sub-account number (tiểu khoản). Omit to use the default sub-account saved when linking."),
+    market: z.enum(["STOCK", "DERIVATIVE"]).default("STOCK").optional().describe("STOCK = cash equities (cơ sở), DERIVATIVE = VN30F futures (phái sinh). Default STOCK."),
+    confirm: z.boolean().default(false).optional().describe("Leave false on the first call to get a preview (nothing is sent). Set true ONLY after the user explicitly confirms that preview."),
   },
   safe(async ({ broker = "dnse", order_id, account, market, confirm }) => {
     const cfg = loadConfig();
