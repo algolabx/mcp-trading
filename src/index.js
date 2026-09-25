@@ -81,9 +81,29 @@ function pickAccount(cfgSection, account, label) {
   return acc;
 }
 
+// ToolAnnotations (spec MCP): tiêu đề + gợi ý an toàn cho client/thư mục (Claude, ChatGPT, Glama).
+// Khớp mcp.algolab.vn: đặt/huỷ lệnh và submit OTP (mở phiên được phép giao dịch) là destructive.
+const ANNOTATIONS = {
+  bridge_status: { title: "Bridge status", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  get_broker_accounts: { title: "Broker sub-accounts", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  get_broker_balance: { title: "Account balance", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  get_broker_positions: { title: "Holdings / positions", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  get_broker_orders: { title: "Order book", readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  request_broker_otp: { title: "Request broker OTP", readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  submit_broker_otp: { title: "Submit broker OTP (open trading session)", readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+  place_broker_order: { title: "Place order (2-step confirm)", readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+  cancel_broker_order: { title: "Cancel order", readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+};
+/** server.tool kèm annotations theo tên — thiếu khai báo thì lỗi ngay lúc khởi động. */
+function tool(name, description, schema, cb) {
+  const annotations = ANNOTATIONS[name];
+  if (!annotations) throw new Error(`Thiếu ANNOTATIONS cho công cụ ${name}`);
+  return server.tool(name, description, schema, annotations, cb);
+}
+
 // ── trạng thái ──────────────────────────────────────────────────────────────
 
-server.tool(
+tool(
   "bridge_status",
   "Trạng thái bridge local: CTCK nào đã liên kết trên máy này, phiên nào còn hạn. " +
     "Khoá KHÔNG bao giờ hiển thị; liên kết/thu hồi chỉ qua CLI `mcp-trading` trong terminal.",
@@ -112,7 +132,7 @@ server.tool(
 
 // ── đọc tài khoản ───────────────────────────────────────────────────────────
 
-server.tool(
+tool(
   "get_broker_accounts",
   "Danh sách tiểu khoản tại một CTCK (gọi thẳng từ máy user).",
   { broker: BROKER.optional() },
@@ -140,7 +160,7 @@ server.tool(
   }),
 );
 
-server.tool(
+tool(
   "get_broker_balance",
   "Tiền mặt / sức mua của một tiểu khoản.",
   { broker: BROKER.optional(), account: z.string().optional() },
@@ -163,7 +183,7 @@ server.tool(
   }),
 );
 
-server.tool(
+tool(
   "get_broker_positions",
   "Danh mục đang nắm giữ của một tiểu khoản.",
   {
@@ -187,7 +207,7 @@ server.tool(
   }),
 );
 
-server.tool(
+tool(
   "get_broker_orders",
   "Sổ lệnh trong ngày của một tiểu khoản.",
   {
@@ -213,7 +233,7 @@ server.tool(
 
 // ── OTP / mở phiên ──────────────────────────────────────────────────────────
 
-server.tool(
+tool(
   "request_broker_otp",
   "Nhờ CTCK gửi OTP mở phiên. DNSE: OTP email (chỉ cần cho đặt/huỷ lệnh; có Smart OTP thì bỏ qua). " +
     "SSI: gửi theo 2FA đã đăng ký — cần một lần cho cả đọc, sau đó refresh tự gia hạn. " +
@@ -242,7 +262,7 @@ server.tool(
   }),
 );
 
-server.tool(
+tool(
   "submit_broker_otp",
   "Nộp OTP mở phiên. DNSE: trading token 8h (smart_otp=true nếu mã từ app). " +
     "SSI: mở access+refresh token (đọc dùng được ngay, tự gia hạn). TCBS: JWT 8h + bridge tự phát hiện tiểu khoản.",
@@ -299,7 +319,7 @@ server.tool(
 
 // ── lệnh (2 bước) ───────────────────────────────────────────────────────────
 
-server.tool(
+tool(
   "place_broker_order",
   "Đặt lệnh THẬT (DNSE, SSI, TCBS — tất cả ký/gửi local). Nghi thức 2 bước bắt buộc: " +
     "gọi lần đầu KHÔNG kèm confirm → trả preview, chưa gửi gì; đọc lại cho người dùng, " +
@@ -380,7 +400,7 @@ server.tool(
   }),
 );
 
-server.tool(
+tool(
   "cancel_broker_order",
   "Huỷ một lệnh theo order_id (DNSE, SSI, TCBS). Cũng 2 bước: không confirm → preview; confirm=true mới gửi.",
   {

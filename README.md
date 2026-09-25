@@ -1,5 +1,7 @@
 # mcp-trading
 
+> **English:** Local MCP server (stdio) for trading Vietnamese stocks on **DNSE, SSI and TCBS** from Claude or any MCP client. Broker API keys stay on your machine (`~/.algolab`, chmod 600) and requests are signed locally from your own IP. 9 tools: `bridge_status`, `get_broker_accounts`, `get_broker_balance`, `get_broker_positions`, `get_broker_orders`, `request_broker_otp`, `submit_broker_otp`, `place_broker_order`, `cancel_broker_order`. Orders are always two-step (preview → explicit confirm). Link a broker with `npx -y github:algolabx/mcp-trading link`, then add `npx -y -p github:algolabx/mcp-trading mcp-trading-server` to your MCP client. For Vietnamese market data (prices, financials, broker research, macro) use the hosted [Algolab MCP](https://mcp.algolab.vn). License: MIT.
+
 MCP server **chạy trên máy bạn** để giao dịch chứng khoán Việt Nam (DNSE · SSI · TCBS) ngay trong Claude Code / Claude Desktop — **khoá API nằm nguyên trên máy bạn**:
 
 - Khoá lưu tại `~/.algolab/mcp-broker.json` (chmod 600) — **không đi qua chat AI, không qua server bên thứ ba**.
