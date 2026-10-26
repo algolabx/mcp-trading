@@ -8,6 +8,7 @@
 // Phạm vi: DNSE · SSI · TCBS đều ĐẦY ĐỦ (đọc + đặt/huỷ lệnh), ký/gửi local.
 // SSI ký lệnh bằng keypair RSA sinh trên máy user; user dán public key vào
 // iBoard một lần (Dịch vụ API) — private key không rời máy.
+import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -16,7 +17,9 @@ import * as dnse from "./dnse.js";
 import * as ssi from "./ssi.js";
 import * as tcbs from "./tcbs.js";
 
-const server = new McpServer({ name: "mcp-trading", version: "0.3.1" });
+// Phiên bản lấy từ package.json — hằng số cứng từng kẹt ở 0.3.1 trong khi gói đã lên 0.3.3.
+const { version: VERSION } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+const server = new McpServer({ name: "mcp-trading", version: VERSION });
 
 const j = (obj) => ({ content: [{ type: "text", text: JSON.stringify(obj, null, 1) }] });
 
@@ -40,7 +43,7 @@ const BROKER = z
 
 const linkHint = (name) =>
   `Chưa liên kết ${name.toUpperCase()} trên máy này. Chạy trong terminal (KHÔNG dán khoá vào chat):\n` +
-  `  npx -y github:algolabx/mcp-trading link ${name}\n` +
+  `  npx -y mcp-trading link ${name}\n` +
   `Khoá lưu tại ~/.algolab/mcp-broker.json quyền 600 và không rời máy bạn.`;
 
 function need(cfg, name) {
